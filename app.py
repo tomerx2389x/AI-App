@@ -67,7 +67,7 @@ def load_data():
             width='stretch')
 def EDA():
     if "df" not in st.session_state:
-        st.warning("Please load data first!")
+        st.info("No data found. Please load a CSV on the 'Load Data' page first.")
     else:
         df = st.session_state.df
         st.title("EDA")
@@ -170,176 +170,184 @@ def plots():
     else:
         st.info("No data found. Please load a CSV on the 'Load Data' page first.")
 def preprocessing():
-    df = st.session_state.df
-    st.session_state.encode_method = None
-    st.title("Preprocessing")
-    
-    func = st.selectbox("Select Preprocessing function", 
-                        options=["nulls","outliers","duplicates", "encode", "scaling" , "feature_engineering" ,"drop"], 
-                        key="preprocess_function")
+    if "df" in st.session_state:
+        df = st.session_state.df
+        st.session_state.encode_method = None
+        st.title("Preprocessing")
+        
+        func = st.selectbox("Select Preprocessing function", 
+                            options=["nulls","outliers","duplicates", "encode", "scaling" , "feature_engineering" ,"drop"], 
+                            key="preprocess_function")
 
-    if func == "nulls":
-        null_counts = df.isnull().sum()
-        cols_with_nulls = null_counts[null_counts > 0].index.tolist()
+        if func == "nulls":
+            null_counts = df.isnull().sum()
+            cols_with_nulls = null_counts[null_counts > 0].index.tolist()
 
-        if not cols_with_nulls:
-            st.success("🎉 Your dataset is clean! No missing values found.")
-        else:
-            col_to_fix = st.selectbox("Choose a column to fix:", cols_with_nulls, key="null_col_selector")
-            st.write(f"Column `{col_to_fix}` has **{null_counts[col_to_fix]}** missing values.")
-
-            method = st.radio("Choose a strategy:", 
-                            ["Do Nothing", "Drop Rows", "Fill with Mean", "Fill with Median", "Fill with Mode" ,"fill with uniform"], 
-                            key="null_method_radio")
-
-            if st.button("Apply Fix to Dataset"):
-                if method == "Drop Rows":
-                    st.session_state.df = df.dropna(subset=[col_to_fix])
-                elif method == "Fill with Mean":
-                    if pd.api.types.is_numeric_dtype(df[col_to_fix]):
-                        val = df[col_to_fix].mean()
-                        st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
-                    else:
-                        st.error("Mean only works for numeric columns!")
-                elif method == "Fill with Median":
-                    if pd.api.types.is_numeric_dtype(df[col_to_fix]):
-                        val = df[col_to_fix].median()
-                        st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
-                elif method == "Fill with Mode":
-                    val = df[col_to_fix].mode()[0]
-                    st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
-                elif method == "fill with uniform":
-                    st.session_state.df = f.fill_uniform(st.session_state.df, col_to_fix)
-                
-                st.rerun()
-
-    elif func == "outliers":
-        outliners_dict = st.session_state.outliners_dict
-        column = st.selectbox("Select column to remove outliers", options=list(outliners_dict["column"]), key="outlier_col")
-        st.write(f"Number of outliers in {column}: {outliners_dict['count'][outliners_dict['column'].index(column)]}")
-        if st.button("Remove Outliers"):
-            # Update session state directly
-            st.session_state.df = f.removeoutliners(st.session_state.df, column)
-            st.rerun()
-            
-        if st.button("squash outliers"):
-            st.session_state.df = f.squashoutliners(st.session_state.df, column)
-            st.rerun()
- 
-    elif func == "duplicates":
-        st.write(f.duplicates(df))
-        if st.button("Remove Duplicates"):
-            st.session_state.df = f.removeduplicates(df)
-            st.rerun()
-    elif func == "drop":
-        st.subheader("🗑️ Drop Rows or Columns")
-        drop_mode = st.radio("What would you like to drop?", ["By Query (Rows)", "Specific Columns"], key="drop_mode")
-
-        if drop_mode == "By Query (Rows)":
-            st.markdown("""
-            **Query Examples:**
-            * `Age > 30` (Removes rows where Age is greater than 30)
-            * `Status == 'Inactive'` (Removes rows where Status is Inactive)
-            """)
-            query_str = st.text_input("Enter query to drop rows:", placeholder="example: Price > 100", key="drop_query_input")
-            
-            if st.button("Drop Rows by Query"):
-                try:
-                    # We get the indices of the rows that match the query
-                    to_drop = df.query(query_str).index
-                    st.session_state.df = df.drop(index=to_drop)
-                    st.success(f"Dropped {len(to_drop)} rows.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error in query: {e}")
-
-        elif drop_mode == "Specific Columns":
-            cols_to_drop = st.multiselect("Select columns to remove:", options=df.columns, key="drop_col_select")
-            
-            if st.button("Drop Selected Columns"):
-                if cols_to_drop:
-                    st.session_state.df = df.drop(columns=cols_to_drop)
-                    st.success(f"Dropped columns: {', '.join(cols_to_drop)}")
-                    st.rerun()
-                else:
-                    st.warning("Please select at least one column.")
-    elif func == "encode":
-        column = st.selectbox("Select column", options=st.session_state.df.select_dtypes(include=['object']).columns)
-        method = st.selectbox("Select method", options=["Label Encoding", "One-Hot Encoding"])
-
-        # 3. The Logic Trigger
-        if st.button("Encode"):
-            # Perform the transformation
-            if method == "Label Encoding":
-                st.session_state.df, st.session_state.encoder = f.lable_encoding(st.session_state.df, column)
+            if not cols_with_nulls:
+                st.success("🎉 Your dataset is clean! No missing values found.")
             else:
-                st.session_state.df, st.session_state.encoder = f.one_hot_encoding(st.session_state.df, [column])
-            
-            # Notify the user
-            st.success(f"Encoded {column}!")
-            # No need for st.rerun() here; the button click already handles the refresh!
-    elif func == "scaling":
-        column = st.multiselect("Select column to scale", options=df.select_dtypes(include=np.number).columns, key="scale_col")
-        method = st.selectbox("Select scaling method", options=["Standard Scaling", "Min-Max Scaling"], key="scale_method")
-        st.session_state.scaling_method = None
-        if st.button("Scale"):
-            st.session_state.DF_BEFORE_SCALING = df.copy()
-            if method == "Standard Scaling":
-                st.session_state.df , st.session_state.scaler = f.standardscaler(df, column)
-            elif method == "Min-Max Scaling":
-                st.session_state.df   , st.session_state.scaler = f.minmaxscalar(df, column)
-            st.rerun()
-        st.session_state.scaling_method = method
+                col_to_fix = st.selectbox("Choose a column to fix:", cols_with_nulls, key="null_col_selector")
+                st.write(f"Column `{col_to_fix}` has **{null_counts[col_to_fix]}** missing values.")
+
+                method = st.radio("Choose a strategy:", 
+                                ["Do Nothing", "Drop Rows", "Fill with Mean", "Fill with Median", "Fill with Mode" ,"fill with uniform"], 
+                                key="null_method_radio")
+
+                if st.button("Apply Fix to Dataset"):
+                    if method == "Drop Rows":
+                        st.session_state.df = df.dropna(subset=[col_to_fix])
+                    elif method == "Fill with Mean":
+                        if pd.api.types.is_numeric_dtype(df[col_to_fix]):
+                            val = df[col_to_fix].mean()
+                            st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
+                        else:
+                            st.error("Mean only works for numeric columns!")
+                    elif method == "Fill with Median":
+                        if pd.api.types.is_numeric_dtype(df[col_to_fix]):
+                            val = df[col_to_fix].median()
+                            st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
+                    elif method == "Fill with Mode":
+                        val = df[col_to_fix].mode()[0]
+                        st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
+                    elif method == "fill with uniform":
+                        st.session_state.df = f.fill_uniform(st.session_state.df, col_to_fix)
+                    
+                    st.rerun()
+
+        elif func == "outliers":
+            outliners_dict = st.session_state.outliners_dict
+            column = st.selectbox("Select column to remove outliers", options=list(outliners_dict["column"]), key="outlier_col")
+            st.write(f"Number of outliers in {column}: {outliners_dict['count'][outliners_dict['column'].index(column)]}")
+            if st.button("Remove Outliers"):
+                # Update session state directly
+                st.session_state.df = f.removeoutliners(st.session_state.df, column)
+                st.rerun()
+                
+            if st.button("squash outliers"):
+                st.session_state.df = f.squashoutliners(st.session_state.df, column)
+                st.rerun()
     
-    elif func == "feature_engineering":
-        st.write("Feature engineering functionality coming soon!")
-    st.session_state.df =  st.session_state.df.copy()
-    st.dataframe(st.session_state.df, width='stretch')
-    st.write(f"Total Rows: {st.session_state.df.shape[0]} | Total Columns: {st.session_state.df.shape[1]}")
+        elif func == "duplicates":
+            st.write(f.duplicates(df))
+            if st.button("Remove Duplicates"):
+                st.session_state.df = f.removeduplicates(df)
+                st.rerun()
+        elif func == "drop":
+            st.subheader("🗑️ Drop Rows or Columns")
+            drop_mode = st.radio("What would you like to drop?", ["By Query (Rows)", "Specific Columns"], key="drop_mode")
+
+            if drop_mode == "By Query (Rows)":
+                st.markdown("""
+                **Query Examples:**
+                * `Age > 30` (Removes rows where Age is greater than 30)
+                * `Status == 'Inactive'` (Removes rows where Status is Inactive)
+                """)
+                query_str = st.text_input("Enter query to drop rows:", placeholder="example: Price > 100", key="drop_query_input")
+                
+                if st.button("Drop Rows by Query"):
+                    try:
+                        # We get the indices of the rows that match the query
+                        to_drop = df.query(query_str).index
+                        st.session_state.df = df.drop(index=to_drop)
+                        st.success(f"Dropped {len(to_drop)} rows.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error in query: {e}")
+
+            elif drop_mode == "Specific Columns":
+                cols_to_drop = st.multiselect("Select columns to remove:", options=df.columns, key="drop_col_select")
+                
+                if st.button("Drop Selected Columns"):
+                    if cols_to_drop:
+                        st.session_state.df = df.drop(columns=cols_to_drop)
+                        st.success(f"Dropped columns: {', '.join(cols_to_drop)}")
+                        st.rerun()
+                    else:
+                        st.warning("Please select at least one column.")
+        elif func == "encode":
+            column = st.selectbox("Select column", options=st.session_state.df.select_dtypes(include=['object']).columns)
+            method = st.selectbox("Select method", options=["Label Encoding", "One-Hot Encoding"])
+
+            # 3. The Logic Trigger
+            if st.button("Encode"):
+                # Perform the transformation
+                if method == "Label Encoding":
+                    st.session_state.df, st.session_state.encoder = f.lable_encoding(st.session_state.df, column)
+                else:
+                    st.session_state.df, st.session_state.encoder = f.one_hot_encoding(st.session_state.df, [column])
+                
+                # Notify the user
+                st.success(f"Encoded {column}!")
+                # No need for st.rerun() here; the button click already handles the refresh!
+        elif func == "scaling":
+            column = st.multiselect("Select column to scale", options=df.select_dtypes(include=np.number).columns, key="scale_col")
+            method = st.selectbox("Select scaling method", options=["Standard Scaling", "Min-Max Scaling"], key="scale_method")
+            st.session_state.scaling_method = None
+            if st.button("Scale"):
+                st.session_state.DF_BEFORE_SCALING = df.copy()
+                if method == "Standard Scaling":
+                    st.session_state.df , st.session_state.scaler = f.standardscaler(df, column)
+                elif method == "Min-Max Scaling":
+                    st.session_state.df   , st.session_state.scaler = f.minmaxscalar(df, column)
+                st.rerun()
+            st.session_state.scaling_method = method
+        
+        elif func == "feature_engineering":
+            st.write("Feature engineering functionality coming soon!")
+        st.session_state.df =  st.session_state.df.copy()
+        st.dataframe(st.session_state.df, width='stretch')
+        st.write(f"Total Rows: {st.session_state.df.shape[0]} | Total Columns: {st.session_state.df.shape[1]}")
+    else:
+        st.info("No data found. Please load a CSV on the 'Load Data' page first.")
 def split_data():
     st.title("Split Data")
-    df = st.session_state.df
-    
-    y_column = st.selectbox("Select target column", options=df.columns, key="model_target_col")
-    x_columns = st.multiselect("Select feature columns", options=[col for col in df.columns if col != y_column], key="model_feature_cols")
-    st.session_state.target = y_column
-    st.session_state.features = x_columns
-    test_size = st.slider("Select test size", 0.1, 0.9, 0.2, key="train_size_slider")
-
-    # 1. Split data ONLY if it hasn't been done or if parameters change
-    if st.button("Initialize / Reset Split"):
-        y = df[y_column]
-        X = df[x_columns]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
-        st.session_state.X_test_before_scaling = st.session_state.DF_BEFORE_SCALING[x_columns].loc[X_test.index]
-        st.session_state.X_train = X_train
-        st.session_state.X_test = X_test
-        st.session_state.y_train = y_train
-        st.session_state.y_test = y_test
-        st.success("Data split successfully!")
-
-    # Ensure data exists before trying to sample or plot
-    if "X_train" in st.session_state:
+    if "df" in st.session_state:
+        df = st.session_state.df
         
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("Apply SMOTE"):
-                st.session_state.X_train, st.session_state.y_train = f.oversampling(st.session_state.X_train, st.session_state.y_train)
-                st.success("Balanced with SMOTE")
+        y_column = st.selectbox("Select target column", options=df.columns, key="model_target_col")
+        x_columns = st.multiselect("Select feature columns", options=[col for col in df.columns if col != y_column], key="model_feature_cols")
+        st.session_state.target = y_column
+        st.session_state.features = x_columns
+        test_size = st.slider("Select test size", 0.1, 0.9, 0.2, key="train_size_slider")
 
-        with col2:
-            if st.button("Apply Undersampling"):
-                st.session_state.X_train, st.session_state.y_train = f.undersampling(st.session_state.X_train, st.session_state.y_train)
-                st.success("Balanced with Undersampling")
+        # 1. Split data ONLY if it hasn't been done or if parameters change
+        if st.button("Initialize / Reset Split"):
+            y = df[y_column]
+            X = df[x_columns]
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+            st.session_state.X_train = X_train
+            st.session_state.X_test = X_test
+            st.session_state.y_train = y_train
+            st.session_state.y_test = y_test
+            if "DF_BEFORE_SCALING" in st.session_state:
+                st.session_state.X_test_before_scaling = st.session_state.DF_BEFORE_SCALING[x_columns].loc[X_test.index]
+            else: 
+                st.session_state.X_test_before_scaling = st.session_state.X_test
+            st.success("Data split successfully!")
 
-        # 2. The Plotting Logic
-        st.divider()
-        st.subheader("Class Distribution")
-        fig, ax = plt.subplots(figsize=(10, 4))
-        sns.countplot(x=st.session_state.y_train, ax=ax)
-        st.pyplot(fig)
+        # Ensure data exists before trying to sample or plot
+        if "X_train" in st.session_state:
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("Apply SMOTE"):
+                    st.session_state.X_train, st.session_state.y_train = f.oversampling(st.session_state.X_train, st.session_state.y_train)
+                    st.success("Balanced with SMOTE")
 
+            with col2:
+                if st.button("Apply Undersampling"):
+                    st.session_state.X_train, st.session_state.y_train = f.undersampling(st.session_state.X_train, st.session_state.y_train)
+                    st.success("Balanced with Undersampling")
+
+            # 2. The Plotting Logic
+            st.divider()
+            st.subheader("Class Distribution")
+            fig, ax = plt.subplots(figsize=(10, 4))
+            sns.countplot(x=st.session_state.y_train, ax=ax)
+            st.pyplot(fig)
+    else:
+        st.info("No data found. Please load a CSV on the 'Load Data' page first.")
 
 def make_model():
     st.title("Make Model")
