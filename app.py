@@ -66,233 +66,236 @@ def load_data():
             st.dataframe(st.session_state.df,
             width='stretch')
 def EDA():
-    df = st.session_state.df
-    st.title("EDA")
-    func = st.selectbox("Select EDA function", options=["show data" , "describe", "info" ,"nulls" , "outliers" , "correlation" , "duplicates"], key="eda_function")
-    if func == "describe":
-        st.write(df.describe())
-    elif func == "info":
-        info_df = pd.DataFrame({
-                "Column": df.columns,
-                "Type": df.dtypes.values.astype(str),
-                "Non-Null Count": df.notnull().sum().values.astype(str)
-            })
-        st.dataframe(info_df, width='stretch')
-        st.write(f"**Total Rows:** {df.shape[0]} | **Total Columns:** {df.shape[1]}")
-    elif func == "show data":
-        st.dataframe(df, width='stretch')
-    elif func == "nulls":
-        st.write(f.null(df))
-    elif func == "outliers":
-        st.session_state.outliners_dict = {"column": [],"count": []}
-        for i in df.select_dtypes(include=np.number).columns:
-            text , count = f.outliners(df,i)
-            if count > 0:
-                st.session_state.outliners_dict["column"].append(i)
-                st.session_state.outliners_dict["count"].append(count)
-            st.write(text)
-    elif func == "correlation":
-        numeric_df = df.select_dtypes(include=['number'])
-        corr = numeric_df.corr()
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5)
-        plt.title("Correlation Heatmap")
-        st.pyplot(plt)
-    elif func == "duplicates":
-        st.write(f.duplicates(df))
-def plots():
-    st.title("Plot")
-    
-    # Safety check: ensure data is loaded in session state
-    if "df" in st.session_state and st.session_state.df is not None:
-        df = st.session_state.df
-        
-        # 1. Main Plot Selection - 'key' makes this choice stay saved
-        func = st.selectbox(
-            "Select Plot Type", 
-            options=["histogram", "boxplot", "scatter", "count", "line", "bar", "heatmap"], 
-            key="main_plot_selection"
-        )
-
-        # 2. Create the Figure and Axis (the 'canvas')
-        fig, ax = plt.subplots(figsize=(10, 6))
-
-        # 3. Plot Logic
-        if func == "histogram":
-            column = st.selectbox("Select column", options=df.columns, key="hist_col")
-            sns.histplot(df[column], kde=True, ax=ax)
-            ax.set_title(f"Histogram of {column}")
-
-        elif func == "boxplot":
-            column = st.selectbox("Select column", options=df.columns, key="box_col")
-            sns.boxplot(x=df[column], ax=ax)
-            ax.set_title(f"Boxplot of {column}")
-
-        elif func == "scatter":
-            x_col = st.selectbox("Select X-axis", options=df.columns, key="scat_x")
-            y_col = st.selectbox("Select Y-axis", options=df.columns, key="scat_y")
-            sns.scatterplot(x=df[x_col], y=df[y_col], ax=ax)
-            ax.set_title(f"Scatter: {x_col} vs {y_col}")
-
-        elif func == "count":
-            column = st.selectbox("Select column", options=df.columns, key="count_col")
-            sns.countplot(x=df[column], ax=ax)
-            ax.set_title(f"Count of {column}")
-
-        elif func == "line":
-            x_col = st.selectbox("Select X-axis", options=df.columns, key="line_x")
-            y_col = st.selectbox("Select Y-axis", options=df.columns, key="line_y")
-            sns.lineplot(x=df[x_col], y=df[y_col], ax=ax)
-            ax.set_title(f"Line Plot: {x_col} vs {y_col}")
-
-        elif func == "bar":
-            column = st.selectbox("Select column", options=df.columns, key="bar_col")
-            # Calculate counts first to avoid Seaborn index errors
-            counts = df[column].value_counts()
-            sns.barplot(x=counts.index, y=counts.values, ax=ax)
-            ax.set_title(f"Bar Plot of {column}")
-
-        elif func == "heatmap":
-            # Only use numeric columns for correlation
-            numeric_df = df.select_dtypes(include=['number'])
-            if not numeric_df.empty:
-                sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
-                ax.set_title("Correlation Heatmap")
-            else:
-                st.warning("Heatmap requires at least one numeric column.")
-
-        # 4. Display the plot in the app
-        st.pyplot(fig)
-        
+    if "df" not in st.session_state:
+        st.warning("Please load data first!")
     else:
-        st.info("No data found. Please load a CSV on the 'Load Data' page first.")
-def preprocessing():
-    df = st.session_state.df
-    st.session_state.encode_method = None
-    st.title("Preprocessing")
-    
-    func = st.selectbox("Select Preprocessing function", 
-                        options=["nulls","outliers","duplicates", "encode", "scaling" , "feature_engineering" ,"drop"], 
-                        key="preprocess_function")
-
-    if func == "nulls":
-        null_counts = df.isnull().sum()
-        cols_with_nulls = null_counts[null_counts > 0].index.tolist()
-
-        if not cols_with_nulls:
-            st.success("🎉 Your dataset is clean! No missing values found.")
-        else:
-            col_to_fix = st.selectbox("Choose a column to fix:", cols_with_nulls, key="null_col_selector")
-            st.write(f"Column `{col_to_fix}` has **{null_counts[col_to_fix]}** missing values.")
-
-            method = st.radio("Choose a strategy:", 
-                            ["Do Nothing", "Drop Rows", "Fill with Mean", "Fill with Median", "Fill with Mode" ,"fill with uniform"], 
-                            key="null_method_radio")
-
-            if st.button("Apply Fix to Dataset"):
-                if method == "Drop Rows":
-                    st.session_state.df = df.dropna(subset=[col_to_fix])
-                elif method == "Fill with Mean":
-                    if pd.api.types.is_numeric_dtype(df[col_to_fix]):
-                        val = df[col_to_fix].mean()
-                        st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
-                    else:
-                        st.error("Mean only works for numeric columns!")
-                elif method == "Fill with Median":
-                    if pd.api.types.is_numeric_dtype(df[col_to_fix]):
-                        val = df[col_to_fix].median()
-                        st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
-                elif method == "Fill with Mode":
-                    val = df[col_to_fix].mode()[0]
-                    st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
-                elif method == "fill with uniform":
-                    st.session_state.df = f.fill_uniform(st.session_state.df, col_to_fix)
-                
-                st.rerun()
-
-    elif func == "outliers":
-        outliners_dict = st.session_state.outliners_dict
-        column = st.selectbox("Select column to remove outliers", options=list(outliners_dict["column"]), key="outlier_col")
-        st.write(f"Number of outliers in {column}: {outliners_dict['count'][outliners_dict['column'].index(column)]}")
-        if st.button("Remove Outliers"):
-            # Update session state directly
-            st.session_state.df = f.removeoutliners(st.session_state.df, column)
-            st.rerun()
+        df = st.session_state.df
+        st.title("EDA")
+        func = st.selectbox("Select EDA function", options=["show data" , "describe", "info" ,"nulls" , "outliers" , "correlation" , "duplicates"], key="eda_function")
+        if func == "describe":
+            st.write(df.describe())
+        elif func == "info":
+            info_df = pd.DataFrame({
+                    "Column": df.columns,
+                    "Type": df.dtypes.values.astype(str),
+                    "Non-Null Count": df.notnull().sum().values.astype(str)
+                })
+            st.dataframe(info_df, width='stretch')
+            st.write(f"**Total Rows:** {df.shape[0]} | **Total Columns:** {df.shape[1]}")
+        elif func == "show data":
+            st.dataframe(df, width='stretch')
+        elif func == "nulls":
+            st.write(f.null(df))
+        elif func == "outliers":
+            st.session_state.outliners_dict = {"column": [],"count": []}
+            for i in df.select_dtypes(include=np.number).columns:
+                text , count = f.outliners(df,i)
+                if count > 0:
+                    st.session_state.outliners_dict["column"].append(i)
+                    st.session_state.outliners_dict["count"].append(count)
+                st.write(text)
+        elif func == "correlation":
+            numeric_df = df.select_dtypes(include=['number'])
+            corr = numeric_df.corr()
+            plt.figure(figsize=(10, 8))
+            sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5)
+            plt.title("Correlation Heatmap")
+            st.pyplot(plt)
+        elif func == "duplicates":
+            st.write(f.duplicates(df))
+    def plots():
+        st.title("Plot")
+        
+        # Safety check: ensure data is loaded in session state
+        if "df" in st.session_state and st.session_state.df is not None:
+            df = st.session_state.df
             
-        if st.button("squash outliers"):
-            st.session_state.df = f.squashoutliners(st.session_state.df, column)
-            st.rerun()
- 
-    elif func == "duplicates":
-        st.write(f.duplicates(df))
-        if st.button("Remove Duplicates"):
-            st.session_state.df = f.removeduplicates(df)
-            st.rerun()
-    elif func == "drop":
-        st.subheader("🗑️ Drop Rows or Columns")
-        drop_mode = st.radio("What would you like to drop?", ["By Query (Rows)", "Specific Columns"], key="drop_mode")
+            # 1. Main Plot Selection - 'key' makes this choice stay saved
+            func = st.selectbox(
+                "Select Plot Type", 
+                options=["histogram", "boxplot", "scatter", "count", "line", "bar", "heatmap"], 
+                key="main_plot_selection"
+            )
 
-        if drop_mode == "By Query (Rows)":
-            st.markdown("""
-            **Query Examples:**
-            * `Age > 30` (Removes rows where Age is greater than 30)
-            * `Status == 'Inactive'` (Removes rows where Status is Inactive)
-            """)
-            query_str = st.text_input("Enter query to drop rows:", placeholder="example: Price > 100", key="drop_query_input")
-            
-            if st.button("Drop Rows by Query"):
-                try:
-                    # We get the indices of the rows that match the query
-                    to_drop = df.query(query_str).index
-                    st.session_state.df = df.drop(index=to_drop)
-                    st.success(f"Dropped {len(to_drop)} rows.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error in query: {e}")
+            # 2. Create the Figure and Axis (the 'canvas')
+            fig, ax = plt.subplots(figsize=(10, 6))
 
-        elif drop_mode == "Specific Columns":
-            cols_to_drop = st.multiselect("Select columns to remove:", options=df.columns, key="drop_col_select")
-            
-            if st.button("Drop Selected Columns"):
-                if cols_to_drop:
-                    st.session_state.df = df.drop(columns=cols_to_drop)
-                    st.success(f"Dropped columns: {', '.join(cols_to_drop)}")
-                    st.rerun()
+            # 3. Plot Logic
+            if func == "histogram":
+                column = st.selectbox("Select column", options=df.columns, key="hist_col")
+                sns.histplot(df[column], kde=True, ax=ax)
+                ax.set_title(f"Histogram of {column}")
+
+            elif func == "boxplot":
+                column = st.selectbox("Select column", options=df.columns, key="box_col")
+                sns.boxplot(x=df[column], ax=ax)
+                ax.set_title(f"Boxplot of {column}")
+
+            elif func == "scatter":
+                x_col = st.selectbox("Select X-axis", options=df.columns, key="scat_x")
+                y_col = st.selectbox("Select Y-axis", options=df.columns, key="scat_y")
+                sns.scatterplot(x=df[x_col], y=df[y_col], ax=ax)
+                ax.set_title(f"Scatter: {x_col} vs {y_col}")
+
+            elif func == "count":
+                column = st.selectbox("Select column", options=df.columns, key="count_col")
+                sns.countplot(x=df[column], ax=ax)
+                ax.set_title(f"Count of {column}")
+
+            elif func == "line":
+                x_col = st.selectbox("Select X-axis", options=df.columns, key="line_x")
+                y_col = st.selectbox("Select Y-axis", options=df.columns, key="line_y")
+                sns.lineplot(x=df[x_col], y=df[y_col], ax=ax)
+                ax.set_title(f"Line Plot: {x_col} vs {y_col}")
+
+            elif func == "bar":
+                column = st.selectbox("Select column", options=df.columns, key="bar_col")
+                # Calculate counts first to avoid Seaborn index errors
+                counts = df[column].value_counts()
+                sns.barplot(x=counts.index, y=counts.values, ax=ax)
+                ax.set_title(f"Bar Plot of {column}")
+
+            elif func == "heatmap":
+                # Only use numeric columns for correlation
+                numeric_df = df.select_dtypes(include=['number'])
+                if not numeric_df.empty:
+                    sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
+                    ax.set_title("Correlation Heatmap")
                 else:
-                    st.warning("Please select at least one column.")
-    elif func == "encode":
-        column = st.selectbox("Select column", options=st.session_state.df.select_dtypes(include=['object']).columns)
-        method = st.selectbox("Select method", options=["Label Encoding", "One-Hot Encoding"])
+                    st.warning("Heatmap requires at least one numeric column.")
 
-        # 3. The Logic Trigger
-        if st.button("Encode"):
-            # Perform the transformation
-            if method == "Label Encoding":
-                st.session_state.df, st.session_state.encoder = f.lable_encoding(st.session_state.df, column)
-            else:
-                st.session_state.df, st.session_state.encoder = f.one_hot_encoding(st.session_state.df, [column])
+            # 4. Display the plot in the app
+            st.pyplot(fig)
             
-            # Notify the user
-            st.success(f"Encoded {column}!")
-            # No need for st.rerun() here; the button click already handles the refresh!
-    elif func == "scaling":
-        column = st.multiselect("Select column to scale", options=df.select_dtypes(include=np.number).columns, key="scale_col")
-        method = st.selectbox("Select scaling method", options=["Standard Scaling", "Min-Max Scaling"], key="scale_method")
-        st.session_state.scaling_method = None
-        if st.button("Scale"):
-            st.session_state.DF_BEFORE_SCALING = df.copy()
-            if method == "Standard Scaling":
-                st.session_state.df , st.session_state.scaler = f.standardscaler(df, column)
-            elif method == "Min-Max Scaling":
-                st.session_state.df   , st.session_state.scaler = f.minmaxscalar(df, column)
-            st.rerun()
-        st.session_state.scaling_method = method
+        else:
+            st.info("No data found. Please load a CSV on the 'Load Data' page first.")
+    def preprocessing():
+        df = st.session_state.df
+        st.session_state.encode_method = None
+        st.title("Preprocessing")
+        
+        func = st.selectbox("Select Preprocessing function", 
+                            options=["nulls","outliers","duplicates", "encode", "scaling" , "feature_engineering" ,"drop"], 
+                            key="preprocess_function")
+
+        if func == "nulls":
+            null_counts = df.isnull().sum()
+            cols_with_nulls = null_counts[null_counts > 0].index.tolist()
+
+            if not cols_with_nulls:
+                st.success("🎉 Your dataset is clean! No missing values found.")
+            else:
+                col_to_fix = st.selectbox("Choose a column to fix:", cols_with_nulls, key="null_col_selector")
+                st.write(f"Column `{col_to_fix}` has **{null_counts[col_to_fix]}** missing values.")
+
+                method = st.radio("Choose a strategy:", 
+                                ["Do Nothing", "Drop Rows", "Fill with Mean", "Fill with Median", "Fill with Mode" ,"fill with uniform"], 
+                                key="null_method_radio")
+
+                if st.button("Apply Fix to Dataset"):
+                    if method == "Drop Rows":
+                        st.session_state.df = df.dropna(subset=[col_to_fix])
+                    elif method == "Fill with Mean":
+                        if pd.api.types.is_numeric_dtype(df[col_to_fix]):
+                            val = df[col_to_fix].mean()
+                            st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
+                        else:
+                            st.error("Mean only works for numeric columns!")
+                    elif method == "Fill with Median":
+                        if pd.api.types.is_numeric_dtype(df[col_to_fix]):
+                            val = df[col_to_fix].median()
+                            st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
+                    elif method == "Fill with Mode":
+                        val = df[col_to_fix].mode()[0]
+                        st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
+                    elif method == "fill with uniform":
+                        st.session_state.df = f.fill_uniform(st.session_state.df, col_to_fix)
+                    
+                    st.rerun()
+
+        elif func == "outliers":
+            outliners_dict = st.session_state.outliners_dict
+            column = st.selectbox("Select column to remove outliers", options=list(outliners_dict["column"]), key="outlier_col")
+            st.write(f"Number of outliers in {column}: {outliners_dict['count'][outliners_dict['column'].index(column)]}")
+            if st.button("Remove Outliers"):
+                # Update session state directly
+                st.session_state.df = f.removeoutliners(st.session_state.df, column)
+                st.rerun()
+                
+            if st.button("squash outliers"):
+                st.session_state.df = f.squashoutliners(st.session_state.df, column)
+                st.rerun()
     
-    elif func == "feature_engineering":
-        st.write("Feature engineering functionality coming soon!")
-    st.session_state.df =  st.session_state.df.copy()
-    st.dataframe(st.session_state.df, width='stretch')
-    st.write(f"Total Rows: {st.session_state.df.shape[0]} | Total Columns: {st.session_state.df.shape[1]}")
+        elif func == "duplicates":
+            st.write(f.duplicates(df))
+            if st.button("Remove Duplicates"):
+                st.session_state.df = f.removeduplicates(df)
+                st.rerun()
+        elif func == "drop":
+            st.subheader("🗑️ Drop Rows or Columns")
+            drop_mode = st.radio("What would you like to drop?", ["By Query (Rows)", "Specific Columns"], key="drop_mode")
+
+            if drop_mode == "By Query (Rows)":
+                st.markdown("""
+                **Query Examples:**
+                * `Age > 30` (Removes rows where Age is greater than 30)
+                * `Status == 'Inactive'` (Removes rows where Status is Inactive)
+                """)
+                query_str = st.text_input("Enter query to drop rows:", placeholder="example: Price > 100", key="drop_query_input")
+                
+                if st.button("Drop Rows by Query"):
+                    try:
+                        # We get the indices of the rows that match the query
+                        to_drop = df.query(query_str).index
+                        st.session_state.df = df.drop(index=to_drop)
+                        st.success(f"Dropped {len(to_drop)} rows.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error in query: {e}")
+
+            elif drop_mode == "Specific Columns":
+                cols_to_drop = st.multiselect("Select columns to remove:", options=df.columns, key="drop_col_select")
+                
+                if st.button("Drop Selected Columns"):
+                    if cols_to_drop:
+                        st.session_state.df = df.drop(columns=cols_to_drop)
+                        st.success(f"Dropped columns: {', '.join(cols_to_drop)}")
+                        st.rerun()
+                    else:
+                        st.warning("Please select at least one column.")
+        elif func == "encode":
+            column = st.selectbox("Select column", options=st.session_state.df.select_dtypes(include=['object']).columns)
+            method = st.selectbox("Select method", options=["Label Encoding", "One-Hot Encoding"])
+
+            # 3. The Logic Trigger
+            if st.button("Encode"):
+                # Perform the transformation
+                if method == "Label Encoding":
+                    st.session_state.df, st.session_state.encoder = f.lable_encoding(st.session_state.df, column)
+                else:
+                    st.session_state.df, st.session_state.encoder = f.one_hot_encoding(st.session_state.df, [column])
+                
+                # Notify the user
+                st.success(f"Encoded {column}!")
+                # No need for st.rerun() here; the button click already handles the refresh!
+        elif func == "scaling":
+            column = st.multiselect("Select column to scale", options=df.select_dtypes(include=np.number).columns, key="scale_col")
+            method = st.selectbox("Select scaling method", options=["Standard Scaling", "Min-Max Scaling"], key="scale_method")
+            st.session_state.scaling_method = None
+            if st.button("Scale"):
+                st.session_state.DF_BEFORE_SCALING = df.copy()
+                if method == "Standard Scaling":
+                    st.session_state.df , st.session_state.scaler = f.standardscaler(df, column)
+                elif method == "Min-Max Scaling":
+                    st.session_state.df   , st.session_state.scaler = f.minmaxscalar(df, column)
+                st.rerun()
+            st.session_state.scaling_method = method
+        
+        elif func == "feature_engineering":
+            st.write("Feature engineering functionality coming soon!")
+        st.session_state.df =  st.session_state.df.copy()
+        st.dataframe(st.session_state.df, width='stretch')
+        st.write(f"Total Rows: {st.session_state.df.shape[0]} | Total Columns: {st.session_state.df.shape[1]}")
 def split_data():
     st.title("Split Data")
     df = st.session_state.df
