@@ -55,7 +55,7 @@ def load_data():
             try:
                 st.session_state.df = pd.read_csv(link)
             except Exception as e:
-                st.write(f"Error loading CSV: {e}")
+                st.warning(f"Error loading CSV: {e}")
             st.session_state.outliners_dict = {"column": [],"count": []}
             for i in st.session_state.df.select_dtypes(include=np.number).columns:
                 text , count = f.outliners(st.session_state.df,i)
