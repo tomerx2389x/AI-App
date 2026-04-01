@@ -52,7 +52,10 @@ def load_data():
         if link == "":
             st.warning("Please enter a link to load the data.") 
         else:
-            st.session_state.df = pd.read_csv(link)
+            try:
+                st.session_state.df = pd.read_csv(link)
+            except Exception as e:
+                st.error(f"Error loading CSV: {e}")
             st.session_state.outliners_dict = {"column": [],"count": []}
             for i in st.session_state.df.select_dtypes(include=np.number).columns:
                 text , count = f.outliners(st.session_state.df,i)
