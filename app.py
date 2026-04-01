@@ -695,6 +695,136 @@ def make_model():
                     st.pyplot(plt)
                 else:
                     st.warning("Please run the GridSearch first to see the validation curve.")
+    elif model_name == "SVM":
+        metrics = st.multiselect("Select metrics", options=["accuracy", "precision", "recall", "f1"], key="svm_metrics")
+        if 'svm_mode' not in st.session_state:
+            st.session_state.svm_mode = None
+        col1, col2 = st.columns(2)
+        if col1.button("Manual Entry"):
+            st.session_state.svm_mode = "manual"
+        if col2.button("Grid Search"):
+            st.session_state.svm_mode = "grid"
+        if st.session_state.svm_mode == "manual":
+            st.subheader("Manual")
+            with st.form("svm_manual_form"):
+                C = st.number_input("Regularization parameter", min_value=0.01, value=1.0, step=0.1)
+                kernel = st.selectbox("Kernel", options=["linear", "poly", "rbf", "sigmoid"], key="svm_kernel")
+                submit_manual = st.form_submit_button("Train SVM Model")
+
+                if submit_manual:
+                    model = SVC(C=C, kernel=kernel)
+                    model.fit(st.session_state.X_train, st.session_state.y_train)
+                    st.session_state.svm_model = model
+
+                    st.success(f"SVM trained with C={C} and kernel={kernel}")
+                    for metric in metrics:
+                        st.text(f.final_evaluation(
+                            st.session_state.svm_model,
+                            st.session_state.X_train, st.session_state.X_test,
+                            st.session_state.y_train, st.session_state.y_test,
+                            metric
+                        ))
+        elif st.session_state.svm_mode == "grid":
+            st.subheader("GridSearchCV")
+            verbose = st.slider("Verbose (you will see the progress in the terminal)", 0, 12, 1, key="svm_verbose")
+            param_grid = {
+                'C':np.arange(0.01, 1.01, 0.1),
+                'kernel': ['linear', 'poly', 'rbf', 'sigmoid']
+            }
+            C_range = st.text_input("Range for C (default: 0.01,1.01,0.1)", placeholder="example:0.01 , 1.01 , 0.1 (from 0.01 to 1.01 with jumps of 0.1)", key="svm_C_input").split(',')
+            kernel_range = st.selectbox("Range for kernel (default: linear,poly,rbf,sigmoid)", options=['linear', 'poly', 'rbf', 'sigmoid'], key="svm_kernel_input")
+            param_grid['C'] = np.arange(float(C_range[0]), float(C_range[1]), float(C_range[2]))
+            param_grid['kernel'] = kernel_range if len(kernel_range) > 0 else ['linear', 'poly', 'rbf', 'sigmoid']
+            C_start = int(C_range[0]) if len(C_range) > 0 and C_range[0].strip().isdigit() else 1
+            C_end = int(C_range[1]) + 1 if len(C_range) > 1 and C_range[1].strip().isdigit() else 21
+            step = int(C_range[2]) if len(C_range) > 2 and C_range[2].strip().isdigit() else 1
+            param_grid['C'] = np.arange(C_start, C_end, step)
+            k = st.text_input("Number of folds for K-Fold (default: 4) (if you dont want CV put 0)", key="dt_kfold_input")
+            n_splits = int(k) if k.isdigit() else 4
+            metric = st.selectbox("Select ONE metric for evaluation during GridSearch", options=["accuracy", "precision", "recall", "f1"], key="dt_grid_metrics")
+            if st.button("Run Search"):
+                st.info("Running GridSearch...")
+                st.session_state.svm_model , st.session_state.svm_grid = f.svm(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
+                st.success("GridSearch completed!")
+                st.text(f"Best C: {st.session_state.svm_model.C}")
+                st.text(f"Best kernel: {st.session_state.svm_model.kernel}")
+                for metric in metrics:
+                    st.text(f.final_evaluation(
+                        st.session_state.svm_model,
+                        st.session_state.X_train, st.session_state.X_test,
+                        st.session_state.y_train, st.session_state.y_test,
+                        metric
+                    ))
+            if st.button("Show GridSearchCV Results"):
+                if 'svm_grid' in st.session_state:
+                    grid_results = pd.DataFrame(st.session_state.svm_grid)
+                    st.dataframe(grid_results, width='stretch')
+                else:
+                    st.warning("Please run the GridSearch first to see results.")
+            if st.button("Show Validation Curve for C"):
+                if 'svm_grid' in st.session_state:
+                    param_range = param_grid['C']
+                    train_scores, test_scores = validation_curve(
+                        SVC(kernel=st.session_state.svm_model.kernel),
+                        st.session_state.X_train,
+                        st.session_state.y_train,
+                        param_name="C",
+                        param_range=param_range,
+                        cv=n_splits,
+                        scoring=metric
+                    )
+                    train_scores_mean = np.mean(train_scores, axis=1)
+                    test_scores_mean = np.mean(test_scores, axis=1)
+
+                    plt.figure(figsize=(10, 6))
+                    plt.plot(param_range, train_scores_mean, label='Training score', color='blue')
+                    plt.plot(param_range, test_scores_mean, label='Cross-validation score', color='orange')
+                    plt.title('Validation Curve for C')
+                    plt.xlabel('Regularization Parameter (C)')
+                    plt.ylabel(metric.capitalize())
+                    plt.legend(loc='best')
+                    st.pyplot(plt)
+                else:
+                    st.warning("Please run the GridSearch first to see the validation curve.")
+            if st.button("Show Validation Curve for kernel"):
+                if 'svm_grid' in st.session_state:
+                    param_range = param_grid['kernel']
+                    train_scores, test_scores = validation_curve(
+                        SVC(C=st.session_state.svm_model.C),
+                        st.session_state.X_train,
+                        st.session_state.y_train,
+                        param_name="kernel",
+                        param_range=param_range,
+                        cv=n_splits,
+                        scoring=metric
+                    )
+                    train_scores_mean = np.mean(train_scores, axis=1)
+                    test_scores_mean = np.mean(test_scores, axis=1)
+
+                    plt.figure(figsize=(10, 6))
+                    plt.plot(param_range, train_scores_mean, label='Training score', color='blue')
+                    plt.plot(param_range, test_scores_mean, label='Cross-validation score', color='orange')
+                    plt.title('Validation Curve for kernel')
+                    plt.xlabel('Kernel')
+                    plt.ylabel(metric.capitalize())
+                    plt.legend(loc='best')
+                    st.pyplot(plt)
+                else:
+                    st.warning("Please run the GridSearch first to see the validation curve.")
+    elif model_name == "Nearest Centroid":
+        metrics = st.multiselect("Select metrics", options=["accuracy", "precision", "recall", "f1"], key="nc_metrics")
+        if st.button("Train Nearest Centroid Model"):
+            model = NearestCentroid()
+            model.fit(st.session_state.X_train, st.session_state.y_train)
+            st.session_state.nc_model = model
+            st.success("Nearest Centroid model trained!")
+            for metric in metrics:
+                st.text(f.final_evaluation(
+                    st.session_state.nc_model,
+                    st.session_state.X_train, st.session_state.X_test,
+                    st.session_state.y_train, st.session_state.y_test,
+                    metric
+                ))
 def  save_data():
     st.title("Save Data")
     data  = st.multiselect("Select data to save", options=["train set", "test set" ,"full dataset"], key="save_data_select")
@@ -741,41 +871,59 @@ def predict():
     if model_name == "KNN":
         if 'knn_model' in st.session_state:
             model = st.session_state.knn_model
-            st.write("Model loaded. You can now input values for prediction.")
-            with st.form("prediction_form"):
-                input_data = {}
-                for feature in st.session_state.features:
-                    value = st.number_input(f"Enter value for {feature}:", key=f"predict_{feature}")
-                    input_data[feature] = [value]
-                input_df = pd.DataFrame(input_data)
-                input_df = pd.concat([input_df , st.session_state.X_test_before_scaling], axis =0, ignore_index=True)
-                submit = st.form_submit_button("Predict with KNN")
-
-                if submit:
-                    # 1. Scaling Logic
-                    if st.session_state.scaling_method == "Standard Scaling":
-                        input_df = f.standardscaler(input_df, st.session_state.features)[0]
-                    elif st.session_state.scaling_method == "Min-Max Scaling":
-                        input_df = f.minmaxscalar(input_df, st.session_state.features)[0]
-
-                    # 2. Encoding Logic
-                    if st.session_state.encode_method:
-                        for col in input_df.columns:
-                            if st.session_state.encode_method == "Label Encoding":
-                                input_df = f.lable_encoding(input_df, [col])
-                            elif st.session_state.encode_method == "One-Hot Encoding":
-                                input_df = f.one_hot_encoding(input_df, [col])
-                    input_df = input_df.loc[0, st.session_state.features].to_frame().T
-                    # 3. Prediction
-                    try:
-                        # Ensure 'model' is retrieved from session state or defined elsewhere
-                        prediction = st.session_state.knn_model.predict(input_df)
-                        st.success(f"Predicted {st.session_state.target}: {prediction[0]}")
-                        st.dataframe(input_df)
-                    except Exception as e:
-                        st.error(f"Error during prediction: {e}")
         else:
             st.warning("Please train a KNN model first on the 'Make Model' page.")
+    elif model_name == "Decision Tree":
+        if 'dt_model' in st.session_state:
+            model = st.session_state.dt_model
+        else:
+            st.warning("Please train a Decision Tree model first on the 'Make Model' page.")
+    elif model_name == "Random Forest":
+        if 'rf_model' in st.session_state:
+            model = st.session_state.rf_model
+        else:
+            st.warning("Please train a Random Forest model first on the 'Make Model' page.")
+    elif model_name == "SVM":
+        if 'svm_model' in st.session_state:
+            model = st.session_state.svm_model
+        else:
+            st.warning("Please train a SVM model first on the 'Make Model' page.")
+    elif model_name == "Nearest Centroid":
+        if 'nc_model' in st.session_state:
+            model = st.session_state.nc_model
+        else:
+            st.warning("Please train a Nearest Centroid model first on the 'Make Model' page.")
+    st.write("Model loaded. You can now input values for prediction.")
+    with st.form("prediction_form"):
+        input_data = {}
+        for feature in st.session_state.features:
+            value = st.number_input(f"Enter value for {feature}:", key=f"predict_{feature}")
+            input_data[feature] = [value]
+        input_df = pd.DataFrame(input_data)
+        input_df = pd.concat([input_df , st.session_state.X_test_before_scaling], axis =0, ignore_index=True)
+        submit = st.form_submit_button("Predict")
+
+        if submit:
+            if st.session_state.scaling_method == "Standard Scaling":
+                input_df = f.standardscaler(input_df, st.session_state.features)[0]
+            elif st.session_state.scaling_method == "Min-Max Scaling":
+                input_df = f.minmaxscalar(input_df, st.session_state.features)[0]
+
+
+            if st.session_state.encode_method:
+                for col in input_df.columns:
+                    if st.session_state.encode_method == "Label Encoding":
+                        input_df = f.lable_encoding(input_df, [col])
+                    elif st.session_state.encode_method == "One-Hot Encoding":
+                        input_df = f.one_hot_encoding(input_df, [col])
+            input_df = input_df.loc[0, st.session_state.features].to_frame().T
+            try:
+                prediction = model.predict(input_df)
+                st.success(f"Predicted {st.session_state.target}: {prediction[0]}")
+                st.dataframe(input_df)
+            except Exception as e:
+                    st.error(f"Error during prediction: {e}")
+
         
 
 st.title("AI Model Maker")
