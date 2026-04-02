@@ -1,0 +1,30 @@
+cookie:
+  expiry_days: 30
+  key: some_signature_key
+  name: some_cookie_name
+credentials:
+  usernames:
+    admin:
+      email: admin@gmail.com
+      first_name: Admin
+      last_name: Admin
+      logged_in: false
+      password: $2b$12$2m4t./4lanXRcqmpiwjl9uSxXyAVHXekJUjjPQlUyiRzdhDgYVy6W
+      password_hint: A.
+      roles: null
+    tomer2389:
+      email: tomerm2389@gmail.com
+      failed_login_attempts: 0
+      first_name: tomer
+      last_name: mashiah
+      logged_in: true
+      password: $2b$12$8kP8FKxmHg4Zgz0WDvT25uzD1g4Jm4icbg1izuHQ.xjX7ZrbrWqhC
+      password_hint: .
+      roles: null
+    tomer93:
+      email: tomer@example.com
+      name: Tomer Mashiah
+      password: $2b$12$Eu/jlaLkmYPV6qGH5dES.O95iE1dIZC2906o9ahPDURp3b0leuv2W
+pre-authorized:
+  emails:
+  - melsby@gmail.com
