@@ -22,7 +22,7 @@ from sklearn.model_selection import cross_val_score,cross_validate
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay,classification_report
 from sklearn.model_selection import KFold
-from sklearn.neighbors import NearestCentroid
+from sklearn.neighbors import NearestCentroid                                                                                           
 from sklearn.svm import NuSVC
 # eda
 from imblearn.over_sampling import SMOTE
@@ -30,6 +30,8 @@ from imblearn.under_sampling import RandomUnderSampler
 from sklearn.preprocessing import MinMaxScaler , StandardScaler
 from sklearn.preprocessing import LabelEncoder , OneHotEncoder
 #general
+import os
+import pickle
 import math
 import pandas as pd
 import numpy as np
@@ -38,7 +40,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
 
-import functions as f
+import functions
 # 1. Create your data
 st.set_page_config(
     page_title="AI Model Maker",
@@ -58,7 +60,7 @@ def load_data():
                 st.warning(f"Error loading CSV: {e}")
             st.session_state.outliners_dict = {"column": [],"count": []}
             for i in st.session_state.df.select_dtypes(include=np.number).columns:
-                text , count = f.outliners(st.session_state.df,i)
+                text , count = functions.outliners(st.session_state.df,i)
                 if count > 0:
                     st.session_state.outliners_dict["column"].append(i)
                     st.session_state.outliners_dict["count"].append(count)
@@ -89,7 +91,7 @@ def EDA():
         elif func == "outliers":
             st.session_state.outliners_dict = {"column": [],"count": []}
             for i in df.select_dtypes(include=np.number).columns:
-                text , count = f.outliners(df,i)
+                text , count = functions.outliners(df,i)
                 if count > 0:
                     st.session_state.outliners_dict["column"].append(i)
                     st.session_state.outliners_dict["count"].append(count)
@@ -102,7 +104,7 @@ def EDA():
             plt.title("Correlation Heatmap")
             st.pyplot(plt)
         elif func == "duplicates":
-            st.write(f.duplicates(df))
+            st.write(functions.duplicates(df))
 def plots():
     st.title("Plot")
     
@@ -173,6 +175,9 @@ def preprocessing():
     if "df" in st.session_state:
         df = st.session_state.df
         st.session_state.encode_method = None
+        st.session_state.column_to_encode = []
+        st.session_state.scaling_method = None
+        user = st.session_state["username"]
         st.title("Preprocessing")
         
         func = st.selectbox("Select Preprocessing function", 
@@ -210,7 +215,7 @@ def preprocessing():
                         val = df[col_to_fix].mode()[0]
                         st.session_state.df[col_to_fix] = df[col_to_fix].fillna(val)
                     elif method == "fill with uniform":
-                        st.session_state.df = f.fill_uniform(st.session_state.df, col_to_fix)
+                        st.session_state.df =  functions.fill_uniform(st.session_state.df, col_to_fix)
                     
                     st.rerun()
 
@@ -220,17 +225,17 @@ def preprocessing():
             st.write(f"Number of outliers in {column}: {outliners_dict['count'][outliners_dict['column'].index(column)]}")
             if st.button("Remove Outliers"):
                 # Update session state directly
-                st.session_state.df = f.removeoutliners(st.session_state.df, column)
+                st.session_state.df = functions.removeoutliners(st.session_state.df, column)
                 st.rerun()
                 
             if st.button("squash outliers"):
-                st.session_state.df = f.squashoutliners(st.session_state.df, column)
+                st.session_state.df = functions.squashoutliners(st.session_state.df, column)
                 st.rerun()
     
         elif func == "duplicates":
-            st.write(f.duplicates(df))
+            st.write(functions.duplicates(df))
             if st.button("Remove Duplicates"):
-                st.session_state.df = f.removeduplicates(df)
+                st.session_state.df = functions.removeduplicates(df)
                 st.rerun()
         elif func == "drop":
             st.subheader("🗑️ Drop Rows or Columns")
@@ -267,31 +272,56 @@ def preprocessing():
         elif func == "encode":
             column = st.selectbox("Select column", options=st.session_state.df.select_dtypes(include=['object']).columns)
             method = st.selectbox("Select method", options=["Label Encoding", "One-Hot Encoding"])
-
-            # 3. The Logic Trigger
             if st.button("Encode"):
-                # Perform the transformation
+                st.session_state.column_to_encode.append(column)
                 if method == "Label Encoding":
-                    st.session_state.df, st.session_state.encoder = f.lable_encoding(st.session_state.df, column)
+                    st.session_state.df, st.session_state.encoder = functions.label_encoding(st.session_state.df, column)
                 else:
-                    st.session_state.df, st.session_state.encoder = f.one_hot_encoding(st.session_state.df, [column])
-                
-                # Notify the user
+                    st.session_state.df, st.session_state.encoder = functions.one_hot_encoding(st.session_state.df, [column])
                 st.success(f"Encoded {column}!")
-                # No need for st.rerun() here; the button click already handles the refresh!
+            st.session_state.encode_method = method
+            user = st.session_state["username"]
+            user_path = f"saved_encoding_method/{user}"
+            if not os.path.exists(user_path):
+                os.makedirs(user_path)
+            if 'encode_method' in st.session_state:
+                file_path = f"{user_path}/encoding_method.pkl"
+                with open(file_path, 'wb') as f:
+                    pickle.dump(st.session_state.encode_method, f)
+            user_path = f"saved_encoded_columns/{user}"
+            if not os.path.exists(user_path):
+                os.makedirs(user_path)
+            if 'column_to_encode' in st.session_state:
+                file_path = f"{user_path}/encoded_columns.pkl"
+                with open(file_path, 'wb') as f:
+                    pickle.dump(st.session_state.column_to_encode, f)
         elif func == "scaling":
-            column = st.multiselect("Select column to scale", options=df.select_dtypes(include=np.number).columns, key="scale_col")
+            column   = st.multiselect("Select column to scale", options=df.select_dtypes(include=np.number).columns, key="scale_col")
             method = st.selectbox("Select scaling method", options=["Standard Scaling", "Min-Max Scaling"], key="scale_method")
             st.session_state.scaling_method = None
             if st.button("Scale"):
                 st.session_state.DF_BEFORE_SCALING = df.copy()
+                st.session_state.columns_to_scale = column
                 if method == "Standard Scaling":
-                    st.session_state.df , st.session_state.scaler = f.standardscaler(df, column)
+                    st.session_state.df , st.session_state.scaler = functions.standardscaler(df, column)
                 elif method == "Min-Max Scaling":
-                    st.session_state.df   , st.session_state.scaler = f.minmaxscalar(df, column)
+                    st.session_state.df   , st.session_state.scaler = functions.minmaxscalar(df, column)
                 st.rerun()
             st.session_state.scaling_method = method
-        
+            user_path = f"saved_scaling_method/{user}"
+            if not os.path.exists(user_path):
+                os.makedirs(user_path)
+            if 'scaling_method' in st.session_state:
+                file_path = f"{user_path}/scaling_method.pkl"
+                with open(file_path, 'wb') as f:
+                    pickle.dump(st.session_state.scaling_method, f)
+            user_path = f"saved_scaled_columns/{user}"
+            if not os.path.exists(user_path):
+                os.makedirs(user_path)
+            if 'columns_to_scale' in st.session_state:
+                file_path = f"{user_path}/scaled_columns.pkl"
+                with open(file_path, 'wb') as f:
+                    pickle.dump(st.session_state.columns_to_scale, f)
         elif func == "feature_engineering":
             st.write("Feature engineering functionality coming soon!")
         st.session_state.df =  st.session_state.df.copy()
@@ -308,9 +338,15 @@ def split_data():
         x_columns = st.multiselect("Select feature columns", options=[col for col in df.columns if col != y_column], key="model_feature_cols")
         st.session_state.target = y_column
         st.session_state.features = x_columns
+        user = st.session_state["username"]
+        user_path = f"saved_features/{user}"
+        if not os.path.exists(user_path):
+            os.makedirs(user_path)
+        if 'features' in st.session_state:
+            file_path = f"{user_path}/features.pkl"
+            with open(file_path, 'wb') as f:
+                pickle.dump(st.session_state.features, f)
         test_size = st.slider("Select test size", 0.1, 0.9, 0.2, key="train_size_slider")
-
-        # 1. Split data ONLY if it hasn't been done or if parameters change
         if st.button("Initialize / Reset Split"):
             y = df[y_column]
             X = df[x_columns]
@@ -323,24 +359,28 @@ def split_data():
                 st.session_state.X_test_before_scaling = st.session_state.DF_BEFORE_SCALING[x_columns].loc[X_test.index]
             else: 
                 st.session_state.X_test_before_scaling = st.session_state.X_test
+            user_path = f"saved_X_test_before_scaling/{user}"
+            if not os.path.exists(user_path):
+                os.makedirs(user_path)
+            if 'X_test_before_scaling' in st.session_state:
+                file_path = f"{user_path}/X_test_before_scaling.pkl"
+                with open(file_path, 'wb') as f:
+                    pickle.dump(st.session_state.X_test_before_scaling, f)
             st.success("Data split successfully!")
 
-        # Ensure data exists before trying to sample or plot
         if "X_train" in st.session_state:
             
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 if st.button("Apply SMOTE"):
-                    st.session_state.X_train, st.session_state.y_train = f.oversampling(st.session_state.X_train, st.session_state.y_train)
+                    st.session_state.X_train, st.session_state.y_train = functions.oversampling(st.session_state.X_train, st.session_state.y_train)
                     st.success("Balanced with SMOTE")
 
             with col2:
                 if st.button("Apply Undersampling"):
-                    st.session_state.X_train, st.session_state.y_train = f.undersampling(st.session_state.X_train, st.session_state.y_train)
+                    st.session_state.X_train, st.session_state.y_train = functions.undersampling(st.session_state.X_train, st.session_state.y_train)
                     st.success("Balanced with Undersampling")
-
-            # 2. The Plotting Logic
             st.divider()
             st.subheader("Class Distribution")
             fig, ax = plt.subplots(figsize=(10, 4))
@@ -374,7 +414,7 @@ def make_model():
                     
                     st.success(f"KNN trained with k={k}")
                     for metric in metrics:
-                        st.text(f.final_evaluation(
+                        st.text(functions.final_evaluation(
                             st.session_state.knn_model,
                             st.session_state.X_train, st.session_state.X_test,
                             st.session_state.y_train, st.session_state.y_test,
@@ -397,11 +437,11 @@ def make_model():
             metric = st.selectbox("Select ONE metric for evaluation during GridSearch", options=["accuracy", "precision", "recall", "f1"], key="knn_grid_metrics")
             if st.button("Run Search"):
                 st.info("Running GridSearch...")
-                st.session_state.knn_model , st.session_state.knn_grid = f.knn(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
+                st.session_state.knn_model , st.session_state.knn_grid = functions.knn(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
                 st.success("GridSearch completed!")
                 st.text(f"Best k: {st.session_state.knn_model.n_neighbors}")
                 for metric in metrics:
-                    st.text(f.final_evaluation(
+                    st.text(functions.final_evaluation(
                         st.session_state.knn_model,
                         st.session_state.X_train, st.session_state.X_test,
                         st.session_state.y_train, st.session_state.y_test,
@@ -438,6 +478,16 @@ def make_model():
                     st.pyplot(plt)
                 else:
                     st.warning("Please run the GridSearch first to see the validation curve.")
+        if st.button("Save Model to My Account"):
+            user = st.session_state["username"]
+            user_path = f"saved_models/{user}"
+            if not os.path.exists(user_path):
+                os.makedirs(user_path)
+            if 'knn_model' in st.session_state:
+                file_path = f"{user_path}/knn_model.pkl"
+                with open(file_path, 'wb') as f:
+                    pickle.dump(st.session_state.knn_model, f)
+                st.success(f"Model saved in your folder: {file_path}")
     elif model_name == "Decision Tree":
         metrics = st.multiselect("Select metrics", options=["accuracy", "precision", "recall", "f1"], key="dt_metrics")
         if 'dt_mode' not in st.session_state:
@@ -461,7 +511,7 @@ def make_model():
 
                     st.success(f"Decision Tree trained with max_depth={max_depth} and min_samples_leaf={min_samples_leaf}")
                     for metric in metrics:
-                        st.text(f.final_evaluation(
+                        st.text(functions.final_evaluation(
                             st.session_state.dt_model,
                             st.session_state.X_train, st.session_state.X_test,
                             st.session_state.y_train, st.session_state.y_test,
@@ -489,12 +539,12 @@ def make_model():
             metric = st.selectbox("Select ONE metric for evaluation during GridSearch", options=["accuracy", "precision", "recall", "f1"], key="dt_grid_metrics")
             if st.button("Run Search"):
                 st.info("Running GridSearch...")
-                st.session_state.dt_model , st.session_state.dt_grid = f.tree(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
+                st.session_state.dt_model , st.session_state.dt_grid = functions.tree(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
                 st.success("GridSearch completed!")
                 st.text(f"Best max_depth: {st.session_state.dt_model.max_depth}")
                 st.text(f"Best min_samples_leaf: {st.session_state.dt_model.min_samples_leaf}")
                 for metric in metrics:
-                    st.text(f.final_evaluation(
+                    st.text(functions.final_evaluation(
                         st.session_state.dt_model,
                         st.session_state.X_train, st.session_state.X_test,
                         st.session_state.y_train, st.session_state.y_test,
@@ -577,7 +627,7 @@ def make_model():
                     st.session_state.rf_model = model
                     st.success(f"Random Forest trained with n_estimators={n_estimators} and max_depth={max_depth} , min_samples_leaf={min_samples_leaf}")
                     for metric in metrics:
-                        st.text(f.final_evaluation(
+                        st.text(functions.final_evaluation(
                             st.session_state.rf_model,
                             st.session_state.X_train, st.session_state.X_test,
                             st.session_state.y_train, st.session_state.y_test,
@@ -616,13 +666,13 @@ def make_model():
             metric = st.selectbox("Select ONE metric for evaluation during GridSearch", options=["accuracy", "precision", "recall", "f1"], key="rf_grid_metrics")
             if st.button("Run Search"):
                 st.info("Running GridSearch...")
-                st.session_state.rf_model , st.session_state.rf_grid = f.random_forest(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params1=params1, params2=params2 , verbose=verbose)
+                st.session_state.rf_model , st.session_state.rf_grid = functions.random_forest(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params1=params1, params2=params2 , verbose=verbose)
                 st.success("GridSearch completed!")
                 st.text(f"Best n_estimators: {st.session_state.rf_model.n_estimators}")
                 st.text(f"Best max_depth: {st.session_state.rf_model.max_depth}")
                 st.text(f"Best min_samples_leaf: {st.session_state.rf_model.min_samples_leaf}")
                 for metric in metrics:
-                    st.text(f.final_evaluation(
+                    st.text(functions.final_evaluation(
                         st.session_state.rf_model,
                         st.session_state.X_train, st.session_state.X_test,
                         st.session_state.y_train, st.session_state.y_test,
@@ -732,7 +782,7 @@ def make_model():
 
                     st.success(f"SVM trained with C={C} and kernel={kernel}")
                     for metric in metrics:
-                        st.text(f.final_evaluation(
+                        st.text(functions.final_evaluation(
                             st.session_state.svm_model,
                             st.session_state.X_train, st.session_state.X_test,
                             st.session_state.y_train, st.session_state.y_test,
@@ -758,12 +808,12 @@ def make_model():
             metric = st.selectbox("Select ONE metric for evaluation during GridSearch", options=["accuracy", "precision", "recall", "f1"], key="dt_grid_metrics")
             if st.button("Run Search"):
                 st.info("Running GridSearch...")
-                st.session_state.svm_model , st.session_state.svm_grid = f.svm(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
+                st.session_state.svm_model , st.session_state.svm_grid = functions.svm(X_train=st.session_state.X_train, y_train=st.session_state.y_train,X_test = st.session_state.X_test,y_test = st.session_state.y_test , metric = metric , k= n_splits , params=param_grid , verbose=verbose)
                 st.success("GridSearch completed!")
                 st.text(f"Best C: {st.session_state.svm_model.C}")
                 st.text(f"Best kernel: {st.session_state.svm_model.kernel}")
                 for metric in metrics:
-                    st.text(f.final_evaluation(
+                    st.text(functions.final_evaluation(
                         st.session_state.svm_model,
                         st.session_state.X_train, st.session_state.X_test,
                         st.session_state.y_train, st.session_state.y_test,
@@ -833,7 +883,7 @@ def make_model():
             st.session_state.nc_model = model
             st.success("Nearest Centroid model trained!")
             for metric in metrics:
-                st.text(f.final_evaluation(
+                st.text(functions.final_evaluation(
                     st.session_state.nc_model,
                     st.session_state.X_train, st.session_state.X_test,
                     st.session_state.y_train, st.session_state.y_test,
@@ -879,35 +929,60 @@ def  save_data():
                     mime='text/csv',
                 )
                 st.success("Your data has been and downloaded successfully!")
+def get_needed():
+    encode_method = None
+    scaling_method = None
+    encode_columns = None
+    scaled_columns = None
+    user = st.session_state["username"]
+    user_path = f"saved_features/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        with open(f"{user_path}/{saved_files[0]}", 'rb') as featuresf:
+            features = pickle.loads(featuresf.read())
+    user_path = f"saved_X_test_before_scaling/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        with open(f"{user_path}/{saved_files[0]}", 'rb') as X_test_before_scalingf:
+            X_test_before_scaling = pickle.loads(X_test_before_scalingf.read())
+    user_path = f"saved_scaling_method/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        with open(f"{user_path}/{saved_files[0]}", 'rb') as scaling_methodf:
+            scaling_method = pickle.loads(scaling_methodf.read())
+    user_path = f"saved_encoded_columns/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        with open(f"{user_path}/{saved_files[0]}", 'rb') as encode_columnsf:
+            encode_columns = pickle.loads(encode_columnsf.read())
+    user_path = f"saved_scaled_columns/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        with open(f"{user_path}/{saved_files[0]}", 'rb') as scaled_columnsf:
+            scaled_columns = pickle.loads(scaled_columnsf.read())
+    user_path = f"saved_encode_method/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        with open(f"{user_path}/{saved_files[0]}", 'rb') as encode_methodf:
+            encode_method = pickle.loads(encode_methodf.read())
+
+    return features, X_test_before_scaling, scaling_method , encode_method , scaled_columns  , encode_columns
+
 def predict():
+    st.session_state.features, st.session_state.X_test_before_scaling, st.session_state.scaling_method , st.session_state.encode_method , st.session_state.scaled_columns  , st.session_state.encode_columns = get_needed()
     st.title("Predict")
-    model_name = st.selectbox("Select model for prediction", options=["KNN", "Decision Tree", "Random Forest", "SVM", "Nearest Centroid"], key="predict_model_select")
-    if model_name == "KNN":
-        if 'knn_model' in st.session_state:
-            model = st.session_state.knn_model
-        else:
-            st.warning("Please train a KNN model first on the 'Make Model' page.")
-    elif model_name == "Decision Tree":
-        if 'dt_model' in st.session_state:
-            model = st.session_state.dt_model
-        else:
-            st.warning("Please train a Decision Tree model first on the 'Make Model' page.")
-    elif model_name == "Random Forest":
-        if 'rf_model' in st.session_state:
-            model = st.session_state.rf_model
-        else:
-            st.warning("Please train a Random Forest model first on the 'Make Model' page.")
-    elif model_name == "SVM":
-        if 'svm_model' in st.session_state:
-            model = st.session_state.svm_model
-        else:
-            st.warning("Please train a SVM model first on the 'Make Model' page.")
-    elif model_name == "Nearest Centroid":
-        if 'nc_model' in st.session_state:
-            model = st.session_state.nc_model
-        else:
-            st.warning("Please train a Nearest Centroid model first on the 'Make Model' page.")
-    st.write("Model loaded. You can now input values for prediction.")
+    user = st.session_state["username"]
+    user_path = f"saved_models/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        selected_file = st.selectbox("Load one of your saved models:", saved_files)
+        if st.button("Load Model"):
+            with open(f"{user_path}/{selected_file}", 'rb') as modelf:
+                model = pickle.loads(modelf.read())
+            st.success(f"Successfully loaded {selected_file}!")
+            st.session_state.loaded_model = model
+    else:
+        st.info("You don't have any saved models yet.")
     with st.form("prediction_form"):
         input_data = {}
         for feature in st.session_state.features:
@@ -915,43 +990,95 @@ def predict():
             input_data[feature] = [value]
         input_df = pd.DataFrame(input_data)
         input_df = pd.concat([input_df , st.session_state.X_test_before_scaling], axis =0, ignore_index=True)
+        columns_to_encode = [col for col in st.session_state.encode_columns if col in input_df.columns]
+        columns_to_scale = [col for col in st.session_state.scaled_columns if col in input_df.columns]
         submit = st.form_submit_button("Predict")
-
         if submit:
             if st.session_state.scaling_method == "Standard Scaling":
-                input_df = f.standardscaler(input_df, st.session_state.features)[0]
+                input_df = functions.standardscaler(input_df, columns_to_scale)[0]
             elif st.session_state.scaling_method == "Min-Max Scaling":
-                input_df = f.minmaxscalar(input_df, st.session_state.features)[0]
+                input_df = functions.minmaxscalar(input_df, columns_to_scale)[0]
 
 
             if st.session_state.encode_method:
-                for col in input_df.columns:
+                for col in columns_to_encode:
                     if st.session_state.encode_method == "Label Encoding":
-                        input_df = f.lable_encoding(input_df, [col])
+                        input_df = functions.lable_encoding(input_df, [col])
                     elif st.session_state.encode_method == "One-Hot Encoding":
-                        input_df = f.one_hot_encoding(input_df, [col])
+                        input_df = functions.one_hot_encoding(input_df, [col])
             input_df = input_df.loc[0, st.session_state.features].to_frame().T
             try:
+                model = st.session_state.loaded_model
                 prediction = model.predict(input_df)
                 st.success(f"Predicted {st.session_state.target}: {prediction[0]}")
-                st.dataframe(input_df)
             except Exception as e:
-                    st.error(f"Error during prediction: {e}")
+                    st.info(f"Error during prediction: {e}")
 
         
 
-st.title("AI Model Maker")
-st.subheader("by Tomer Mashiah")
-st.markdown("---") 
-pg = st.navigation([
-    st.Page(load_data, title="Load Data", icon="📂"),
-    st.Page(EDA, title="EDA", icon="📊"),
-    st.Page(plots, title="Plots", icon="📈"),
-    st.Page(preprocessing, title="Preprocessing", icon="⚙️"),
-    st.Page(split_data, title="Split Data", icon="🔄"),
-    st.Page(make_model, title="Make Model", icon="🤖"),
-    st.Page(predict, title="Predict", icon="🔮"),
-    st.Page(save_data, title="Save Data", icon="💾"),
+import streamlit as st
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
+
+# 1. Load user data from your YAML file
+with open('config.yaml') as file:
+    config = yaml.load(file, Loader=SafeLoader)
+
+# 2. Create the authenticator object
+authenticator = stauth.Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days']
+)
+authenticator.login(location='main')
+
+# Then check the status using session_state
+if st.session_state["authentication_status"]:
+    st.sidebar.write(f'Welcome, *{st.session_state["name"]}*')
+    authenticator.logout('Logout', 'sidebar')
+    st.title("AI Model Maker")
+    st.subheader("by Tomer Mashiah")
+    st.markdown("---") 
+    pg = st.navigation([
+        st.Page(load_data, title="Load Data", icon="📂"),
+        st.Page(EDA, title="EDA", icon="📊"),
+        st.Page(plots, title="Plots", icon="📈"),
+        st.Page(preprocessing, title="Preprocessing", icon="⚙️"),
+        st.Page(split_data, title="Split Data", icon="🔄"),
+        st.Page(make_model, title="Make Model", icon="🤖"),
+        st.Page(predict, title="Predict", icon="🔮"),
+        st.Page(save_data, title="Save Data", icon="💾"),
+    ])
+    pg.run()
+
+elif st.session_state["authentication_status"] is False:
+    st.error('Username/password is incorrect')
+
+elif st.session_state["authentication_status"] is None:
+    st.warning('Please enter your username and password')
+    if st.checkbox("New user? Register here"):
+        try:
+            if authenticator.register_user(location='main'):
+                st.success('User registered successfully')
+                with open('config.yaml', 'w') as file:
+                    yaml.dump(config, file, default_flow_style=False)
+        except Exception as e:
+            st.error(f"Registration error: {e}")
+
+#st.title("AI Model Maker")
+#st.subheader("by Tomer Mashiah")
+#st.markdown("---") 
+#pg = st.navigation([
+    #st.Page(load_data, title="Load Data", icon="📂"),
+    #st.Page(EDA, title="EDA", icon="📊"),
+    #st.Page(plots, title="Plots", icon="📈"),
+    #st.Page(preprocessing, title="Preprocessing", icon="⚙️"),
+    #st.Page(split_data, title="Split Data", icon="🔄"),
+    #st.Page(make_model, title="Make Model", icon="🤖"),
+    #st.Page(predict, title="Predict", icon="🔮"),
+    #st.Page(save_data, title="Save Data", icon="💾"),
    
-])
-pg.run()
+#])
+#pg.run()
