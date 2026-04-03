@@ -906,7 +906,7 @@ def make_model():
             user_path = f"saved_models/{user}"
             if not os.path.exists(user_path):
                 os.makedirs(user_path)
-            if 'ncc_model' in st.session_state:
+            if 'nc_model' in st.session_state:
                 file_path = f"{user_path}/ncc_model.pkl"
                 with open(file_path, 'wb') as f:
                     pickle.dump(st.session_state.nc_model, f)
