@@ -369,6 +369,36 @@ def split_data():
         st.info("No data found. Please load a CSV on the 'Load Data' page first.")
 
 def make_model():
+    user = st.session_state["username"]
+    user_path = f"saved_x_test/{user}"
+    if not os.path.exists(user_path):
+        os.makedirs(user_path)
+    if 'X_test' in st.session_state:
+        file_path = f"{user_path}/x_test.pkl"
+        with open(file_path, 'wb') as f:
+            pickle.dump(st.session_state.X_test, f)
+    user_path = f"saved_x_train/{user}"
+    if not os.path.exists(user_path):
+        os.makedirs(user_path)
+    if 'X_train' in st.session_state:
+        file_path = f"{user_path}/x_train.pkl"
+        with open(file_path, 'wb') as f:
+            pickle.dump(st.session_state.X_train, f)
+    user_path = f"saved_y_test/{user}"
+    if not os.path.exists(user_path):
+        os.makedirs(user_path)
+    if 'y_test' in st.session_state:
+        file_path = f"{user_path}/y_test.pkl"
+        with open(file_path, 'wb') as f:
+            pickle.dump(st.session_state.y_test, f)
+    user_path = f"saved_y_train/{user}"
+    if not os.path.exists(user_path):
+        os.makedirs(user_path)
+    if 'y_train' in st.session_state:
+        file_path = f"{user_path}/y_train.pkl"
+        with open(file_path, 'wb') as f:
+            pickle.dump(st.session_state.y_train, f)
+            
     st.title("Make Model")
     if "X_train" not in st.session_state:
         st.info("No training data found. Please split your data on the 'Split Data' page first.")
@@ -907,7 +937,7 @@ def make_model():
             if not os.path.exists(user_path):
                 os.makedirs(user_path)
             if 'nc_model' in st.session_state:
-                file_path = f"{user_path}/ncc_model.pkl"
+                file_path = f"{user_path}/nc_model.pkl"
                 with open(file_path, 'wb') as f:
                     pickle.dump(st.session_state.nc_model, f)
                 st.success(f"Model saved in your folder: {file_path}")
@@ -926,6 +956,33 @@ def make_model():
                     metric
                 ))
 def my_models():
+    user = st.session_state["username"]
+    user_path = f"saved_x_test/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        if saved_files:
+            with open(f"{user_path}/{saved_files[0]}", 'rb') as x_testf:
+                st.session_state.X_test = pickle.loads(x_testf.read())
+    user_path = f"saved_y_test/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        if saved_files:
+            with open(f"{user_path}/{saved_files[0]}", 'rb') as y_testf:
+                st.session_state.y_test = pickle.loads(y_testf.read())
+    user_path = f"saved_X_train/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        if saved_files:
+            with open(f"{user_path}/{saved_files[0]}", 'rb') as X_trainf:
+                st.session_state.X_train = pickle.loads(X_trainf.read())
+    user_path = f"saved_y_train/{user}"
+    if os.path.exists(user_path):
+        saved_files = os.listdir(user_path)
+        if saved_files:
+            with open(f"{user_path}/{saved_files[0]}", 'rb') as y_trainf:
+                st.session_state.y_train = pickle.loads(y_trainf.read())
+
+
     st.title("My Models")
     user = st.session_state["username"]
     user_path = f"saved_models/{user}"
@@ -946,18 +1003,17 @@ def my_models():
                 st.text(file[:-10].upper())
                 if file[:-10] == "knn":
                     st.text(f"  n_neighbors: {model.get_params()['n_neighbors']}")
-                    st.markdown("---")
                 elif file[:-10] == "decision_tree":
                     st.text(f"  max_depth: {model.get_params()['max_depth']} , min_samples_leaf: {model.get_params()['min_samples_leaf']}")
-                    st.markdown("---")
                 elif file[:-10] == "random_forest":
                     st.text(f"  n_estimators: {model.get_params()['n_estimators']} , max_depth: {model.get_params()['max_depth']} , min_samples_leaf: {model.get_params()['min_samples_leaf']}")
-                    st.markdown("---")
                 elif file[:-10] == "svm":
                     st.text(f"  nu: {model.get_params()['nu']} , kernel: {model.get_params()['kernel']}")
-                    st.markdown("---")
                 elif file[:-10] == "ncc":
-                    st.markdown("---")
+                    pass
+                for metric in ["accuracy", "precision", "recall", "f1"]:
+                    st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                st.markdown("---")
         else:
             st.info("You don't have any saved models yet.")
     else:
