@@ -1003,17 +1003,28 @@ def my_models():
                 st.text(file[:-10].upper())
                 if file[:-10] == "knn":
                     st.text(f"  n_neighbors: {model.get_params()['n_neighbors']}")
+                    for metric in ["accuracy", "precision", "recall", "f1"]:
+                        st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                    st.markdown("---")
                 elif file[:-10] == "decision_tree":
                     st.text(f"  max_depth: {model.get_params()['max_depth']} , min_samples_leaf: {model.get_params()['min_samples_leaf']}")
+                    for metric in ["accuracy", "precision", "recall", "f1"]:
+                        st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                    st.markdown("---")
                 elif file[:-10] == "random_forest":
                     st.text(f"  n_estimators: {model.get_params()['n_estimators']} , max_depth: {model.get_params()['max_depth']} , min_samples_leaf: {model.get_params()['min_samples_leaf']}")
+                    for metric in ["accuracy", "precision", "recall", "f1"]:
+                        st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                    st.markdown("---")
                 elif file[:-10] == "svm":
                     st.text(f"  nu: {model.get_params()['nu']} , kernel: {model.get_params()['kernel']}")
+                    for metric in ["accuracy", "precision", "recall", "f1"]:
+                        st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                    st.markdown("---")
                 elif file[:-10] == "ncc":
-                    pass
-                for metric in ["accuracy", "precision", "recall", "f1"]:
-                    st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
-                st.markdown("---")
+                    for metric in ["accuracy", "precision", "recall", "f1"]:
+                        st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                    st.markdown("---")
         else:
             st.info("You don't have any saved models yet.")
     else:
