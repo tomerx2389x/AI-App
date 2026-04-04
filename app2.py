@@ -937,7 +937,7 @@ def make_model():
             if not os.path.exists(user_path):
                 os.makedirs(user_path)
             if 'nc_model' in st.session_state:
-                file_path = f"{user_path}/nc_model.pkl"
+                file_path = f"{user_path}/ncc_model.pkl"
                 with open(file_path, 'wb') as f:
                     pickle.dump(st.session_state.nc_model, f)
                 st.success(f"Model saved in your folder: {file_path}")
@@ -1013,7 +1013,6 @@ def my_models():
                     pass
                 for metric in ["accuracy", "precision", "recall", "f1"]:
                     st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
-                    st.text("nigger")
                 st.markdown("---")
         else:
             st.info("You don't have any saved models yet.")
