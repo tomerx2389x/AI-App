@@ -1012,7 +1012,7 @@ def my_models():
                         st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
                     st.markdown("---")
                 elif file[:-10] == "random_forest":
-                    st.text(f"  n_estimators: {model.get_params()['n_estimators']} , max_depth: {model.get_params()['max_depth']} , min_samples_leaf: {model.get_params()['min_samples_leaf']}")
+                    st.text(f"  n_estimators: {model.get_params()['n_estimators']} , max_depth: {model.get_params()['max_depth']} , min_samples_leaf: {model.get_params()['min_samples_leaf']} nigger")
                     for metric in ["accuracy", "precision", "recall", "f1"]:
                         st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
                     st.markdown("---")
