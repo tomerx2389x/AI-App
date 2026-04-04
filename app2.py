@@ -1013,6 +1013,7 @@ def my_models():
                     pass
                 for metric in ["accuracy", "precision", "recall", "f1"]:
                     st.text(functions.final_evaluation(model,st.session_state.X_train, st.session_state.X_test,st.session_state.y_train, st.session_state.y_test, metric))
+                    st.text("nigger")
                 st.markdown("---")
         else:
             st.info("You don't have any saved models yet.")
