@@ -66,7 +66,7 @@ def oversampling(X,y):
   new_X, new_y = smote.fit_resample(X,y)
   return new_X, new_y
 #ENCODING
-def lable_encoding(df ,column,copy = False ,encoder = None):
+def label_encoding(df ,column,copy = False ,encoder = None):
   '''function for lable encoding, df - dataframe, column - column to encode, copy - if you want return a copy
   '''
   if copy:

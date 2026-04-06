@@ -255,7 +255,7 @@ def preprocessing():
             if st.button("Encode"):
                 st.session_state.column_to_encode.append(column)
                 if method == "Label Encoding":
-                    st.session_state.df, st.session_state.encoder = functions.lable_encoding(st.session_state.df, column)
+                    st.session_state.df, st.session_state.encoder = functions.label_encoding(st.session_state.df, column)
                 else:
                     st.session_state.df, st.session_state.encoder = functions.one_hot_encoding(st.session_state.df, [column])
                 st.success(f"Encoded {column}!")
